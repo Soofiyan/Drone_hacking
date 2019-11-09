@@ -38,7 +38,7 @@ int yaw_mpu,pitch_mpu,roll_mpu;
 uint8_t kp_p = 5,ki_p,kd_p,kp_r=5,ki_r,kd_r,kp_y = 3,ki_y,kd_y;
 int error_pitch,error_roll,error_yaw;
 int target_pitch,target_roll,target_yaw;
-int P_p,I_p,D_p,P_r,I_r,D_r,P_y,I_y,D_y;
+int P_p,I_p,D_p,P_r,I_r,D_r,P_y,I_y,D_y,pid_pitch,pid_roll,pid_yaw;
 int stop_drone = 0, start_drone = 0;
 
 void motor_setup();
@@ -65,20 +65,20 @@ void setup()
   // Turn on the transmission, reception, and Receive interrupt 
   sei();// enable global interrupt
   mySerial.begin(115200);
-//  if(start_drone == 1)
-//  {
-//    for(int j = 0;j<=50;j++)
-//    {
-//      mpu_values();
-//      delay(200);
-//    }
-//    target_pitch = pitch_mpu;
-//    target_roll = roll_mpu;
-//    target_yaw = yaw_mpu;
+  if(start_drone == 1)
+  {
+    for(int j = 0;j<=50;j++)
+    {
+      mpu_values();
+      delay(200);
+    }
+    target_pitch = pitch_mpu;
+    target_roll = roll_mpu;
+    target_yaw = yaw_mpu;
     callibration();   
     motors_run(70,0,0,0,0);
     base_speed =  70;
-//  }
+  }
 }
 
 void loop()
@@ -99,7 +99,7 @@ void loop()
   }
   button_ps2();
   motors_run(base_speed,0,0,0,0);
-  //pid_drone();
+  pid_drone();
 }
 
 void stop_drone_imm()
@@ -208,17 +208,17 @@ void mpu_values()
     switch(prev)
     {
       case 200:
-              yaw1 = pres;
-      case 201:
-              yaw2 = pres;
-      case 202:
               pitch1 = pres;
-      case 203:
+      case 201:
               pitch2 = pres;
-      case 204:
+      case 202:
               roll1 = pres;
-      case 205:
+      case 203:
               roll2 = pres;
+      case 204:
+              yaw1 = pres;
+      case 205:
+              yaw2 = pres;
       
     }
   }
@@ -236,27 +236,39 @@ void pid_drone()
   pid_drone_pitch(error_pitch);
   pid_drone_roll(error_roll);
   pid_drone_yaw(error_yaw);
+  motors_run(base_speed, pid_pitch+pid_roll+pid_yaw, -pid_pitch+pid_roll-pid_yaw, pid_pitch-pid_roll-pid_yaw, -pid_pitch-pid_roll+pid_yaw);
+}
+
+void motors_run(uint8_t base_speed, uint8_t m1, uint8_t m2, uint8_t m3, uint8_t m4)
+{
+  esc_signal0.write(base_speed + m1);
+  esc_signal1.write(base_speed + m2);
+  esc_signal2.write(base_speed + m3);
+  esc_signal3.write(base_speed + m4);
 }
 
 void pid_drone_pitch(int error_pitch)
 {
   P_p = error_pitch*kp_p;
   I_p += error_pitch*ki_p;
-  motors_run(base_speed,P_p,0,P_p,0);
+  pid_pitch = P_p;
+//  motors_run(base_speed,P_p,0,P_p,0);
 }
 
 void pid_drone_roll(int error_roll)
 {
   P_r = error_roll*kp_r;
   I_r += error_roll*ki_r;
-  motors_run(base_speed,P_r,P_r,0,0);
+  pid_roll = P_r;
+//  motors_run(base_speed,P_r,P_r,0,0);
 }
 
 void pid_drone_yaw(int error_yaw)
 {
   P_y = error_yaw*kp_y;
   I_y += error_yaw*ki_y;
-  motors_run(base_speed,P_y,0,0,P_y);
+  pid_yaw = P_y;
+//  motors_run(base_speed,P_y,0,0,P_y);
 }
 
 uint8_t receive_mpu()
@@ -268,13 +280,7 @@ uint8_t receive_mpu()
   return data;
 }
 
-void motors_run(uint8_t base_speed, uint8_t m1, uint8_t m2, uint8_t m3, uint8_t m4)
-{
-  esc_signal0.write(base_speed + m1);
-  esc_signal1.write(base_speed + m2);
-  esc_signal2.write(base_speed + m3);
-  esc_signal3.write(base_speed + m4);
-}
+
 
 void receive()
 {
